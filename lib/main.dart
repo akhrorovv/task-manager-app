@@ -4,7 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:task_manager/pages/home_page.dart';
+import 'package:get/get_navigation/src/root/get_material_app.dart';
 
+import 'config/root_binding.dart';
 import 'models/task_model.dart';
 
 void main() async {
@@ -28,7 +30,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'ToDo',
       theme: ThemeData(
@@ -38,6 +40,7 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: const HomePage(),
+      initialBinding: RootBinding(),
     );
   }
 }
