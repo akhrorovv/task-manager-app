@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:task_manager/services/hive_service.dart';
-
 import '../models/task_model.dart';
 
 class HomePage extends StatefulWidget {
@@ -12,7 +12,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   List<Task> tasks = [];
-
   TextEditingController controller = TextEditingController();
 
   loadTasks() async {
@@ -32,9 +31,23 @@ class _HomePageState extends State<HomePage> {
   addTask() {
     setState(() {
       String taskBody = controller.text;
+      if (taskBody.isEmpty) {
+        return;
+      }
+
       Task task = Task(false, taskBody);
 
       HiveService.storeTask(task);
+      controller.clear();
+      backToFinish();
+      loadTasks();
+    });
+  }
+
+  updateTask(int index) {
+    setState(() {
+      tasks[index].taskBody = controller.text;
+      HiveService.updateTask(index, tasks[index]);
       controller.clear();
       backToFinish();
       loadTasks();
@@ -45,42 +58,10 @@ class _HomePageState extends State<HomePage> {
     Navigator.of(context).pop();
   }
 
-  openDialog(int index) {
-    showDialog(
-      context: context,
-      builder: (BuildContext buildContext) {
-        return AlertDialog(
-          title: const Text("Delete card"),
-          content: const Text("Are you sure you want to delete card?"),
-          actions: [
-            MaterialButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text(
-                "Cancel",
-                style: TextStyle(color: Colors.blue),
-              ),
-            ),
-            MaterialButton(
-              onPressed: () {
-                setState(() {
-                  deleteTask(index);
-                });
-                Navigator.of(context).pop();
-              },
-              child: const Text(
-                "Delete",
-                style: TextStyle(color: Colors.red),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showAddBottomSheet(BuildContext context) {
+  void _showAddBottomSheet(BuildContext context, {Task? task, int? index}) {
+    if (task != null) {
+      controller.text = task.taskBody!;
+    }
     showModalBottomSheet(
       backgroundColor: Colors.transparent,
       context: context,
@@ -98,9 +79,9 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const Text(
-                  'Add Task',
-                  style: TextStyle(fontSize: 20),
+                Text(
+                  task == null ? 'Add Task' : 'Update Task',
+                  style: const TextStyle(fontSize: 20),
                 ),
                 const SizedBox(height: 10),
                 TextField(
@@ -126,8 +107,11 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                       onPressed: () {
-                        // Handle the add task action
-                        addTask();
+                        if (task == null) {
+                          addTask();
+                        } else {
+                          updateTask(index!);
+                        }
                       },
                     ),
                   ],
@@ -144,6 +128,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       tasks[index].isDone = !tasks[index].isDone!;
       HiveService.updateTask(index, tasks[index]);
+      loadTasks();
     });
   }
 
@@ -151,8 +136,6 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
 
-    Task task = Task(false, 'Make ToDo app projects');
-    // HiveService.storeTask(task);
     loadTasks();
   }
 
@@ -167,14 +150,29 @@ class _HomePageState extends State<HomePage> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        // actions: const [Icon(Icons.settings)],
       ),
-      body: ListView.builder(
-        itemCount: tasks.length,
-        itemBuilder: (context, index) {
-          return itemOfTask(tasks[index], index);
-        },
-      ),
+      body: tasks.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    height: 100,
+                    width: 100,
+                    child: Image.asset('assets/icons/checklist.png'),
+                  ),
+                  const Text('No Tasks', style: TextStyle(fontSize: 16))
+                ],
+              ),
+            )
+          : ListView.builder(
+              physics: const BouncingScrollPhysics(),
+              shrinkWrap: true,
+              itemCount: tasks.length,
+              itemBuilder: (context, index) {
+                return itemOfTask(tasks[index], index);
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           _showAddBottomSheet(context);
@@ -186,43 +184,65 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget itemOfTask(Task task, int index) {
-    return GestureDetector(
-      onLongPress: () {
-        openDialog(index);
-      },
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(top: 15, right: 15, left: 15),
-        padding: const EdgeInsets.all(5),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.black.withOpacity(0.3)),
-        ),
-        child: Row(
+    return Container(
+      margin: const EdgeInsets.only(top: 15, right: 15, left: 15),
+      child: Slidable(
+        endActionPane: ActionPane(
+          extentRatio: 0.2,
+          motion: const BehindMotion(),
           children: [
-            Checkbox(
-              checkColor: Colors.white,
-              activeColor: Colors.grey,
-              value: task.isDone,
-              onChanged: (value) => onChanged(value, index),
-            ),
-            Flexible(
-              child: Text(
-                task.taskBody!,
-                style: TextStyle(
-                  decoration: task.isDone!
-                      ? TextDecoration.lineThrough
-                      : TextDecoration.none,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: task.isDone! ? Colors.grey : Colors.black,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+            SlidableAction(
+              padding: const EdgeInsets.all(5),
+              autoClose: true,
+              onPressed: (BuildContext context) {
+                deleteTask(index);
+              },
+              foregroundColor: Colors.red,
+              borderRadius: BorderRadius.circular(10),
+              icon: Icons.delete,
             ),
           ],
+        ),
+        child: GestureDetector(
+          onTap: () {
+            _showAddBottomSheet(context, task: task, index: index);
+          },
+          child: Container(
+            // height: 60,
+            width: double.infinity,
+            // margin: const EdgeInsets.only(top: 15, right: 15, left: 15),
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.black.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Checkbox(
+                  checkColor: Colors.white,
+                  activeColor: Colors.grey,
+                  value: task.isDone,
+                  onChanged: (value) => onChanged(value, index),
+                ),
+                Flexible(
+                  child: Text(
+                    task.taskBody!,
+                    style: TextStyle(
+                      decoration: task.isDone!
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: task.isDone! ? Colors.grey : Colors.black,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
